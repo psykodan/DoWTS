@@ -45,20 +45,20 @@ func main() {
 			log.Fatal(err)
 		}
 		//add functions to set with generic id
-		fn_triggers[rec[1]] = function.Function{0, 128, 500, rec[1]}
+		fn_triggers[rec[1]] = function.Function{ID: 0, Memory: 128, Runtime: 500, Trigger: rec[1]}
 
 	}
 	//assign ID to functions
 	fn_ID := 0
 	for t := range fn_triggers {
-		fn_triggers[t] = function.Function{fn_ID, 128, 500, t}
+		fn_triggers[t] = function.Function{ID: fn_ID, Memory: 128, Runtime: 500, Trigger: t}
 		fn_ID++
 	}
 
 	fmt.Print(fn_triggers)
 
 	//rewind to start of csv file
-	_, err = f.Seek(0, io.SeekStart)
+	f.Seek(0, io.SeekStart)
 
 	//execute function as each enpoint triggered in dataset
 	for {
