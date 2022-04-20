@@ -6,4 +6,5 @@ type Function struct {
 	ID      int
 	Memory  uint64
 	Runtime uint64
+	Trigger string
 }
