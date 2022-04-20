@@ -44,10 +44,11 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-
+		//add functions to set with generic id
 		fn_triggers[rec[1]] = function.Function{0, 128, 500, rec[1]}
 
 	}
+	//assign ID to functions
 	fn_ID := 0
 	for t := range fn_triggers {
 		fn_triggers[t] = function.Function{fn_ID, 128, 500, t}
@@ -55,8 +56,11 @@ func main() {
 	}
 
 	fmt.Print(fn_triggers)
+
+	//rewind to start of csv file
 	_, err = f.Seek(0, io.SeekStart)
 
+	//execute function as each enpoint triggered in dataset
 	for {
 		rec, err := csvReader.Read()
 		if err == io.EOF {
@@ -72,11 +76,13 @@ func main() {
 		IBMFunctions.RunFunction(fn_triggers[rec[1]].ID, fn_triggers[rec[1]].Runtime, fn_triggers[rec[1]].Memory)
 	}
 
+	//Calculate price
 	AWSLog += AWSLambda.CalculatePrice()
 	GCFLog += GoogleFunctions.CalculatePrice()
 	AzureLog += AzureFunctions.CalculatePrice()
 	IBMLog += IBMFunctions.CalculatePrice()
 
+	//Write to file
 	out, err := os.Create("AWS")
 	check(err)
 	w := bufio.NewWriter(out)
