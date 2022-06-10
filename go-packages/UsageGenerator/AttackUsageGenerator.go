@@ -44,7 +44,7 @@ var attacknum = 0
 
 //D
 //how many bots from available pool to use
-var botnetSlice = 10
+var botnetSlice = 100
 var botnetPoolIPs []string
 
 //1

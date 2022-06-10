@@ -7,6 +7,9 @@ import (
 	"io"
 	"log"
 	"os"
+	"time"
+
+	"go.mongodb.org/mongo-driver/bson"
 
 	"github.com/dowts/go-packages/AWSLambda"
 	"github.com/dowts/go-packages/AzureFunctions"
@@ -30,13 +33,17 @@ func DatasetUsageGenerator() {
 	}
 
 	// open dataset file
-	f, err := os.Open("../eCommerce Events History in Cosmetics Shop/2020-Jan.csv")
+	//f, err := os.Open("../eCommerce Events History in Cosmetics Shop/2019-Dec.csv")
+	f, err := os.Open("../events.csv")
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// remember to close the file at the end of the program
 	defer f.Close()
+
+	//bson for holding logs until persistence to database
+	logs := []interface{}{}
 
 	// read csv values using csv.Reader in order to populate functions
 	csvReader := csv.NewReader(f)
@@ -65,7 +72,7 @@ func DatasetUsageGenerator() {
 
 	//rewind to start of csv file
 	f.Seek(0, io.SeekStart)
-
+	csvReader.Read()
 	//execute function as each enpoint triggered in dataset
 	for {
 		rec, err := csvReader.Read()
@@ -80,6 +87,26 @@ func DatasetUsageGenerator() {
 		GoogleFunctions.RunFunction(fn_triggers[rec[1]].ID, fn_triggers[rec[1]].Runtime, fn_triggers[rec[1]].Memory)
 		AzureFunctions.RunFunction(fn_triggers[rec[1]].ID, fn_triggers[rec[1]].Runtime, fn_triggers[rec[1]].Memory)
 		IBMFunctions.RunFunction(fn_triggers[rec[1]].ID, fn_triggers[rec[1]].Runtime, fn_triggers[rec[1]].Memory)
+
+		mu.Lock()
+		timestamp, error := time.Parse("2006-01-02 15:04:05 UTC", rec[0])
+		if error != nil {
+			fmt.Println(error)
+			return
+		}
+		logs = append(logs, bson.D{{"IP", rec[7]}, {"functioID", fn_triggers[rec[1]].ID}, {"timestamp", timestamp}, {"bot", false}})
+		//Check if log list is over size then begin to persist to database
+		if len(logs) >= 10000 {
+			dump := logs
+			logs = []interface{}{}
+			mu.Unlock()
+			_, insertErr := collection.InsertMany(ctx, dump)
+			if insertErr != nil {
+				log.Fatal(insertErr)
+			}
+		} else {
+			mu.Unlock()
+		}
 	}
 
 	//Calculate price

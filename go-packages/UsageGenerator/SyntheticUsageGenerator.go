@@ -45,7 +45,7 @@ var mu sync.Mutex
 //Attack parameters
 //bursty traffic
 //real
-var realBursty = false
+var realBursty = true
 
 func SyntheticDataGenerator() {
 
@@ -55,8 +55,9 @@ func SyntheticDataGenerator() {
 	srcArrive := rand.New(rand.NewSource(uint64(time.Now().UnixNano())))
 	poisson := distuv.Poisson{float64(trafficPerStep), srcArrive}
 
-	//start time for logs
-	startTime := time.Now()
+	//start time for logs, start at midnight
+	t := time.Now().Add(-time.Hour * 24).Format("2006/01/02")
+	startTime, _ := time.Parse("2006/01/02", t)
 
 	for ts := 0; ts < numSteps; ts++ {
 		fmt.Print(ts)
@@ -65,18 +66,38 @@ func SyntheticDataGenerator() {
 		logs := []interface{}{}
 		//choose traffic based on Poisson distribution with expected trafic as lambda
 		traffic := int(poisson.Rand())
-		if realBursty {
-			if rand.Intn(100) < 25 {
-				traffic = traffic / 5
-			}
+		//add variation to the traffic total
+		traffic = int(float64(traffic) + (float64(traffic) * ((math.Sin((float64(ts)/12)*math.Pi) / (float64(traffic))) * (rand.Float64() * 5))))
 
-		}
-
-		//split traffic bsed on function chain ratios
 		splitTraffic := []int{}
 		for f := 0; f < len(functionChains); f++ {
-			//Multplying by sin in order to get peaks and troughs in usuage between day and night
-			splitTraffic = append(splitTraffic, int((float64(traffic)/100*float64(functionChains[f][0]))*(math.Sin((((float64(ts)*math.Pi)/12)-12)*1)+1.5)))
+			//split traffic bsed on function chain ratios
+			ratioTraffic := float64(traffic) / 100 * float64(functionChains[f][0])
+			//Multplying by sin in order to get peaks and troughs in usuage between day and night pluss offset(2) to have peak during day
+			augTraffic := int(ratioTraffic * (math.Sin((((float64(ts) * math.Pi) / 12) - 2)) + 1.05))
+
+			//simulating bursty traffic at certain times of day
+			if realBursty {
+				if ratioTraffic/float64(augTraffic) < 0.7 { //Midday slump (people are busy)
+
+					augTraffic = augTraffic - (augTraffic / (rand.Intn(5) + 2))
+
+				} else if ratioTraffic/float64(augTraffic) > 1.0 { //Middle of the night noise
+
+					augTraffic = augTraffic + (augTraffic / (rand.Intn(10) + 5))
+
+				} else { //outside working hours increase
+					if rand.Intn(10) > 7 {
+						augTraffic = augTraffic + (augTraffic / (rand.Intn(7) + 1))
+					} else {
+						augTraffic = augTraffic - (augTraffic / (rand.Intn(10) + 1))
+
+					}
+				}
+
+			}
+			splitTraffic = append(splitTraffic, augTraffic)
+
 		}
 		//fmt.Print(splitTraffic)
 		//for each function chain execute said functions
@@ -112,10 +133,11 @@ func SyntheticDataGenerator() {
 		}
 		//3
 		randAttacknum = rand.Intn(3000)
-
-		for b := 0; b < botnetSlice; b++ {
-			wg.Add(1)
-			go botTraffic(&wg, &logs, startTime, attackchoice)
+		if botnetSize > 0 {
+			for b := 0; b < botnetSlice; b++ {
+				wg.Add(1)
+				go botTraffic(&wg, &logs, startTime, attackchoice)
+			}
 		}
 
 		wg.Wait()
@@ -185,8 +207,8 @@ func SyntheticSetup(input1 int, input2 int) {
 	timestep = 2
 	numSteps = 730
 	usersPerStep = 1000
-	trafficPerStep = 61000
-	botnetSize = 1000
+	trafficPerStep = 5000 //6100
+	botnetSize = 0
 	detailLog += "attack: " + fmt.Sprint(attackchoice) + " IP spoofing: " + fmt.Sprint(attackIPchoice) + "bursty real" + fmt.Sprint(realBursty) + "bursty bot" + fmt.Sprint(botBursty) + "\n"
 	detailLog += "all attack params start. Constant = " + fmt.Sprint(constantAttacknum) + "Exponential = " + fmt.Sprint(expoAttacknum) + "\n"
 	detailLog += "all IP params start. C reset = " + fmt.Sprint(resetVal) + "B reset = " + fmt.Sprint(5000) + "\n"
@@ -232,11 +254,12 @@ func SyntheticSetup(input1 int, input2 int) {
 	}
 
 	//generated IP addresses for the botnet
-	for ip := 0; ip < botnetSize; ip++ {
-		botnetPoolIPs = append(botnetPoolIPs, genIpaddr())
+	if botnetSize > 0 {
+		for ip := 0; ip < botnetSize; ip++ {
+			botnetPoolIPs = append(botnetPoolIPs, genIpaddr())
+		}
+		botnetIPs = botnetPoolIPs[botnetSlice-botnetSlice : botnetSlice]
 	}
-	botnetIPs = botnetPoolIPs[botnetSlice-botnetSlice : botnetSlice]
-
 	//set time factor
 	switch timestep {
 	//seconds
