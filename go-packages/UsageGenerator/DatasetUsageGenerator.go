@@ -33,8 +33,8 @@ func DatasetUsageGenerator() {
 	}
 
 	// open dataset file
-	//f, err := os.Open("../eCommerce Events History in Cosmetics Shop/2019-Dec.csv")
-	f, err := os.Open("../events.csv")
+	f, err := os.Open("../eCommerce Events History in Cosmetics Shop/2020-Jan.csv")
+	//f, err := os.Open("../events.csv")
 	if err != nil {
 		log.Fatal(err)
 	}

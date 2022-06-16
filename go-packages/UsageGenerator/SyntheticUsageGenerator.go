@@ -58,6 +58,8 @@ func SyntheticDataGenerator() {
 	//start time for logs, start at midnight
 	t := time.Now().Add(-time.Hour * 24).Format("2006/01/02")
 	startTime, _ := time.Parse("2006/01/02", t)
+	splitTraffic := []int{}
+	smoothing := []int{}
 
 	for ts := 0; ts < numSteps; ts++ {
 		fmt.Print(ts)
@@ -67,35 +69,75 @@ func SyntheticDataGenerator() {
 		//choose traffic based on Poisson distribution with expected trafic as lambda
 		traffic := int(poisson.Rand())
 		//add variation to the traffic total
-		traffic = int(float64(traffic) + (float64(traffic) * ((math.Sin((float64(ts)/12)*math.Pi) / (float64(traffic))) * (rand.Float64() * 5))))
+		traffic = int((float64(traffic) * ((((math.Sin(((float64(ts) * math.Pi) / 84))) / 4) + 0.5) + 1)) * 0.5)
+		//traffic = int(float64(traffic) * ((math.Sin((((float64(ts) * math.Pi) / 12) - 2)) * (rand.Float64() * 1)) + 1))
 
-		splitTraffic := []int{}
+		if float64(traffic/trafficPerStep) > 2 {
+			traffic = int(float64(trafficPerStep) * 2)
+		}
+
+		smoothing = splitTraffic
+		splitTraffic = []int{}
 		for f := 0; f < len(functionChains); f++ {
 			//split traffic bsed on function chain ratios
-			ratioTraffic := float64(traffic) / 100 * float64(functionChains[f][0])
-			//Multplying by sin in order to get peaks and troughs in usuage between day and night pluss offset(2) to have peak during day
-			augTraffic := int(ratioTraffic * (math.Sin((((float64(ts) * math.Pi) / 12) - 2)) + 1.05))
+			ratioTraffic := (float64(traffic) / 100 * float64(functionChains[f][0])) + 1
 
+			poissonRatio := distuv.Poisson{float64(ratioTraffic), srcArrive}
+
+			//Multplying by sin in order to get peaks and troughs in usuage between day and night pluss offset(2) to have peak during day
+			augTraffic := int(ratioTraffic * ((math.Sin((((float64(ts) * math.Pi) / 12) - 2)) / 3) + 0.5))
+			//fmt.Print("ratio\n")
+			//fmt.Print(ratioTraffic / float64(augTraffic))
+			//fmt.Print("\n")
 			//simulating bursty traffic at certain times of day
 			if realBursty {
-				if ratioTraffic/float64(augTraffic) < 0.7 { //Midday slump (people are busy)
+				if ratioTraffic/float64(augTraffic) < 2.0 { //Midday slump (people are busy)
 
-					augTraffic = augTraffic - (augTraffic / (rand.Intn(5) + 2))
+					augTraffic = (int((poissonRatio.Rand() * 0.65) * (rand.Float64() + 0.5)))
 
-				} else if ratioTraffic/float64(augTraffic) > 1.0 { //Middle of the night noise
+				} else if ratioTraffic/float64(augTraffic) > 2.5 {
 
-					augTraffic = augTraffic + (augTraffic / (rand.Intn(10) + 5))
+					augTraffic = augTraffic - (augTraffic / (rand.Intn(10) + 1))
 
-				} else { //outside working hours increase
-					if rand.Intn(10) > 7 {
-						augTraffic = augTraffic + (augTraffic / (rand.Intn(7) + 1))
-					} else {
-						augTraffic = augTraffic - (augTraffic / (rand.Intn(10) + 1))
+				} else {
 
-					}
+					augTraffic = int(float64(augTraffic) * (rand.Float64() + 0.75))
 				}
 
+				// } else if ratioTraffic/float64(augTraffic) < 1.5 { //Middle of the night noise
+
+				// 	augTraffic = augTraffic + (augTraffic / (rand.Intn(10) + 1))
+
+				// } else { //outside working hours increase
+
+				// 	augTraffic = augTraffic + (int(poisson.Rand()) / 5)
+
+				// }
+
+				//fmt.Print(augTraffic)
+				//fmt.Print("\n")
+
 			}
+
+			if ts > 1 {
+				if augTraffic-smoothing[f] > 0 {
+					augTraffic = augTraffic - (diff(augTraffic, smoothing[f]) / 2)
+				} else {
+					augTraffic = augTraffic + (diff(augTraffic, smoothing[f]) / 2)
+				}
+			}
+			// if ts > 1 {
+			// 	if augTraffic-smoothing[f] > int(ratioTraffic)/1000 {
+			// 		augTraffic = int(float64(augTraffic) - (float64(diff(augTraffic, smoothing[f])) / 3))
+			// 		//augTraffic = smoothing[f]
+			// 	} else if smoothing[f]-augTraffic > int(ratioTraffic)/1000 {
+			// 		augTraffic = int(float64(augTraffic) + (float64(diff(augTraffic, smoothing[f])) / 3))
+			// 		//augTraffic = smoothing[f]
+			// 	} else {
+			// 		augTraffic = augTraffic + 1
+			// 	}
+
+			// }
 			splitTraffic = append(splitTraffic, augTraffic)
 
 		}
@@ -290,6 +332,13 @@ func SyntheticSetup(input1 int, input2 int) {
 func genIpaddr() string {
 	ip := fmt.Sprintf("%d.%d.%d.%d", rand.Intn(255), rand.Intn(255), rand.Intn(255), rand.Intn(255))
 	return ip
+}
+
+func diff(a, b int) int {
+	if a < b {
+		return b - a
+	}
+	return a - b
 }
 
 //Real traffic generator
