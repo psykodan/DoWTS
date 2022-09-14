@@ -47,8 +47,8 @@ var mu sync.Mutex
 //real
 var realBursty = true
 
-var attackStart = 0
-var attackDur = 0
+var attackStart int
+var attackDur int
 
 func SyntheticDataGenerator() {
 
@@ -154,7 +154,8 @@ func SyntheticDataGenerator() {
 		//3
 		randAttacknum = rand.Intn(400)
 		if botnetSize > 0 {
-			if ts > attackStart && ts < attackDur {
+			if ts >= attackStart && ts < (attackStart+attackDur) {
+				fmt.Print("attack start")
 				for b := 0; b < botnetSlice; b++ {
 					wg.Add(1)
 					go botTraffic(&wg, &logs, startTime, attackchoice)
