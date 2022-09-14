@@ -47,6 +47,9 @@ var mu sync.Mutex
 //real
 var realBursty = true
 
+var attackStart = 0
+var attackDur = 0
+
 func SyntheticDataGenerator() {
 
 	//TRAFFIC MODELLING
@@ -56,8 +59,8 @@ func SyntheticDataGenerator() {
 	poisson := distuv.Poisson{float64(trafficPerStep), srcArrive}
 
 	//start time for logs, start at midnight
-	t := time.Now().Add(-time.Hour * 24).Format("2006/01/02")
-	startTime, _ := time.Parse("2006/01/02", t)
+	//t := time.Now().Add(-time.Hour * 24).Format("2006/01/02")
+	startTime, _ := time.Parse("2006/01/02", "2020/01/01")
 	splitTraffic := []int{}
 	smoothing := []int{}
 
@@ -70,7 +73,6 @@ func SyntheticDataGenerator() {
 		traffic := int(poisson.Rand())
 		//add variation to the traffic total
 		traffic = int((float64(traffic) * ((((math.Sin(((float64(ts) * math.Pi) / 84))) / 4) + 0.5) + 1)) * 0.5)
-		//traffic = int(float64(traffic) * ((math.Sin((((float64(ts) * math.Pi) / 12) - 2)) * (rand.Float64() * 1)) + 1))
 
 		if float64(traffic/trafficPerStep) > 2 {
 			traffic = int(float64(trafficPerStep) * 2)
@@ -86,9 +88,7 @@ func SyntheticDataGenerator() {
 
 			//Multplying by sin in order to get peaks and troughs in usuage between day and night pluss offset(2) to have peak during day
 			augTraffic := int(ratioTraffic * ((math.Sin((((float64(ts) * math.Pi) / 12) - 2)) / 3) + 0.5))
-			//fmt.Print("ratio\n")
-			//fmt.Print(ratioTraffic / float64(augTraffic))
-			//fmt.Print("\n")
+
 			//simulating bursty traffic at certain times of day
 			if realBursty {
 				if ratioTraffic/float64(augTraffic) < 2.0 { //Midday slump (people are busy)
@@ -104,21 +104,9 @@ func SyntheticDataGenerator() {
 					augTraffic = int(float64(augTraffic) * (rand.Float64() + 0.75))
 				}
 
-				// } else if ratioTraffic/float64(augTraffic) < 1.5 { //Middle of the night noise
-
-				// 	augTraffic = augTraffic + (augTraffic / (rand.Intn(10) + 1))
-
-				// } else { //outside working hours increase
-
-				// 	augTraffic = augTraffic + (int(poisson.Rand()) / 5)
-
-				// }
-
-				//fmt.Print(augTraffic)
-				//fmt.Print("\n")
-
 			}
 
+			//smoothing algorithm
 			if ts > 1 {
 				if augTraffic-smoothing[f] > 0 {
 					augTraffic = augTraffic - (diff(augTraffic, smoothing[f]) / 2)
@@ -126,22 +114,12 @@ func SyntheticDataGenerator() {
 					augTraffic = augTraffic + (diff(augTraffic, smoothing[f]) / 2)
 				}
 			}
-			// if ts > 1 {
-			// 	if augTraffic-smoothing[f] > int(ratioTraffic)/1000 {
-			// 		augTraffic = int(float64(augTraffic) - (float64(diff(augTraffic, smoothing[f])) / 3))
-			// 		//augTraffic = smoothing[f]
-			// 	} else if smoothing[f]-augTraffic > int(ratioTraffic)/1000 {
-			// 		augTraffic = int(float64(augTraffic) + (float64(diff(augTraffic, smoothing[f])) / 3))
-			// 		//augTraffic = smoothing[f]
-			// 	} else {
-			// 		augTraffic = augTraffic + 1
-			// 	}
 
-			// }
 			splitTraffic = append(splitTraffic, augTraffic)
+			//splitTraffic = append(splitTraffic, int(ratioTraffic))
 
 		}
-		//fmt.Print(splitTraffic)
+
 		//for each function chain execute said functions
 		for index, value := range splitTraffic {
 			for t := 0; t < value; t++ {
@@ -174,11 +152,13 @@ func SyntheticDataGenerator() {
 			}
 		}
 		//3
-		randAttacknum = rand.Intn(3000)
+		randAttacknum = rand.Intn(400)
 		if botnetSize > 0 {
-			for b := 0; b < botnetSlice; b++ {
-				wg.Add(1)
-				go botTraffic(&wg, &logs, startTime, attackchoice)
+			if ts > attackStart && ts < attackDur {
+				for b := 0; b < botnetSlice; b++ {
+					wg.Add(1)
+					go botTraffic(&wg, &logs, startTime, attackchoice)
+				}
 			}
 		}
 
@@ -204,7 +184,7 @@ func SyntheticDataGenerator() {
 			}
 		}
 		//2
-		expoAttacknum = expoAttacknum * 1.01
+		expoAttacknum = expoAttacknum * 1.005
 		//fmt.Print(expoAttacknum)
 		//fmt.Print("\n")
 	}
@@ -235,22 +215,24 @@ func SyntheticDataGenerator() {
 	w.Flush()
 }
 
-func SyntheticSetup(input1 int, input2 int) {
+func SyntheticSetup(input1 int, input2 int, input3 int, input4 int) {
 	// input
 	attackchoice = input1
 	attackIPchoice = input2
-
+	attackStart = input3
+	attackDur = input4
 	fmt.Print(attackchoice)
 	fmt.Print(attackIPchoice)
 
 	//HARD CODED USER PARAMETERS  This usecase is taken from https://aws.amazon.com/blogs/compute/load-testing-a-web-applications-serverless-backend/
 	//Settings
-	userbaseSize = 100000
+	userbaseSize = 1000000
 	timestep = 2
 	numSteps = 730
-	usersPerStep = 1000
-	trafficPerStep = 5000 //6100
-	botnetSize = 0
+	usersPerStep = 1500
+	trafficPerStep = 61000
+	botnetSize = 1000
+	botnetSlice = 100
 	detailLog += "attack: " + fmt.Sprint(attackchoice) + " IP spoofing: " + fmt.Sprint(attackIPchoice) + "bursty real" + fmt.Sprint(realBursty) + "bursty bot" + fmt.Sprint(botBursty) + "\n"
 	detailLog += "all attack params start. Constant = " + fmt.Sprint(constantAttacknum) + "Exponential = " + fmt.Sprint(expoAttacknum) + "\n"
 	detailLog += "all IP params start. C reset = " + fmt.Sprint(resetVal) + "B reset = " + fmt.Sprint(5000) + "\n"

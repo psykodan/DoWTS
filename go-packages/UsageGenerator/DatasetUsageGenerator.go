@@ -20,6 +20,7 @@ import (
 
 //Create functions based on url enpoints in dataset
 var fn_triggers = make(map[string]function.Function)
+var ips = make(map[string]string)
 
 //logging to file the cost outputs of each platform
 //var AWSLog, GCFLog, IBMLog, AzureLog string
@@ -33,8 +34,8 @@ func DatasetUsageGenerator() {
 	}
 
 	// open dataset file
-	f, err := os.Open("../eCommerce Events History in Cosmetics Shop/2020-Jan.csv")
-	//f, err := os.Open("../events.csv")
+	//f, err := os.Open("../eCommerce Events History in Cosmetics Shop/2020-Feb.csv")
+	f, err := os.Open("../Tech Shop/feb.csv")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -59,6 +60,7 @@ func DatasetUsageGenerator() {
 		}
 		//add functions to set with generic id
 		fn_triggers[rec[1]] = function.Function{ID: 0, Memory: 128, Runtime: 500, Trigger: rec[1]}
+		ips[rec[7]] = genIpaddr()
 
 	}
 	//assign ID to functions
@@ -94,7 +96,7 @@ func DatasetUsageGenerator() {
 			fmt.Println(error)
 			return
 		}
-		logs = append(logs, bson.D{{"IP", rec[7]}, {"functioID", fn_triggers[rec[1]].ID}, {"timestamp", timestamp}, {"bot", false}})
+		logs = append(logs, bson.D{{"IP", ips[rec[7]]}, {"functioID", fn_triggers[rec[1]].ID}, {"timestamp", timestamp}, {"bot", false}})
 		//Check if log list is over size then begin to persist to database
 		if len(logs) >= 10000 {
 			dump := logs
