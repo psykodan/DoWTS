@@ -56,13 +56,13 @@ func SyntheticDataGenerator() {
 
 	//Poisson function random number
 	srcArrive := rand.New(rand.NewSource(uint64(time.Now().UnixNano())))
-	poisson := distuv.Poisson{float64(trafficPerStep), srcArrive}
+	poisson := distuv.Poisson{Lambda: float64(trafficPerStep), Src: srcArrive}
 
 	//start time for logs, start at midnight
 	//t := time.Now().Add(-time.Hour * 24).Format("2006/01/02")
 	startTime, _ := time.Parse("2006/01/02", "2020/01/01")
 	splitTraffic := []int{}
-	smoothing := []int{}
+	//smoothing := []int{}
 
 	for ts := 0; ts < numSteps; ts++ {
 		fmt.Print(ts)
@@ -78,13 +78,13 @@ func SyntheticDataGenerator() {
 			traffic = int(float64(trafficPerStep) * 2)
 		}
 
-		smoothing = splitTraffic
+		smoothing := splitTraffic
 		splitTraffic = []int{}
 		for f := 0; f < len(functionChains); f++ {
 			//split traffic bsed on function chain ratios
 			ratioTraffic := (float64(traffic) / 100 * float64(functionChains[f][0])) + 1
 
-			poissonRatio := distuv.Poisson{float64(ratioTraffic), srcArrive}
+			poissonRatio := distuv.Poisson{Lambda: float64(ratioTraffic), Src: srcArrive}
 
 			//Multplying by sin in order to get peaks and troughs in usuage between day and night pluss offset(2) to have peak during day
 			augTraffic := int(ratioTraffic * ((math.Sin((((float64(ts) * math.Pi) / 12) - 2)) / 3) + 0.5))
@@ -258,17 +258,17 @@ func SyntheticSetup(input1 int, input2 int, input3 int, input4 int) {
 	detailLog += "Botnets usable at once= " + fmt.Sprint(botnetSlice) + "\n"
 
 	//Create functions being targeted
-	functions = append(functions, function.Function{0, 128, 200, "dummy"})
-	functions = append(functions, function.Function{1, 128, 217, "dummy"})
-	functions = append(functions, function.Function{1, 128, 217, "dummy"})
-	functions = append(functions, function.Function{1, 128, 217, "dummy"})
-	functions = append(functions, function.Function{2, 128, 200, "dummy"})
-	functions = append(functions, function.Function{3, 128, 200, "dummy"})
-	functions = append(functions, function.Function{4, 128, 200, "dummy"})
-	functions = append(functions, function.Function{5, 2048, 200, "dummy"})
-	functions = append(functions, function.Function{6, 128, 200, "dummy"})
-	functions = append(functions, function.Function{7, 128, 200, "dummy"})
-	functions = append(functions, function.Function{8, 128, 200, "dummy"})
+	functions = append(functions, function.Function{ID: 0, Memory: 128, Runtime: 200, Trigger: "dummy"})
+	functions = append(functions, function.Function{ID: 1, Memory: 128, Runtime: 217, Trigger: "dummy"})
+	functions = append(functions, function.Function{ID: 1, Memory: 128, Runtime: 217, Trigger: "dummy"})
+	functions = append(functions, function.Function{ID: 1, Memory: 128, Runtime: 217, Trigger: "dummy"})
+	functions = append(functions, function.Function{ID: 2, Memory: 128, Runtime: 200, Trigger: "dummy"})
+	functions = append(functions, function.Function{ID: 3, Memory: 128, Runtime: 200, Trigger: "dummy"})
+	functions = append(functions, function.Function{ID: 4, Memory: 128, Runtime: 200, Trigger: "dummy"})
+	functions = append(functions, function.Function{ID: 5, Memory: 2048, Runtime: 200, Trigger: "dummy"})
+	functions = append(functions, function.Function{ID: 6, Memory: 128, Runtime: 200, Trigger: "dummy"})
+	functions = append(functions, function.Function{ID: 7, Memory: 128, Runtime: 200, Trigger: "dummy"})
+	functions = append(functions, function.Function{ID: 8, Memory: 128, Runtime: 200, Trigger: "dummy"})
 
 	//define logical order function execute in different scenarios first item is ratio % of scenario (expected load = 1000 post questions, 10000 post answers, 50000 get questions)
 	//POST Question
@@ -292,7 +292,7 @@ func SyntheticSetup(input1 int, input2 int, input3 int, input4 int) {
 		for ip := 0; ip < botnetSize; ip++ {
 			botnetPoolIPs = append(botnetPoolIPs, genIpaddr())
 		}
-		botnetIPs = botnetPoolIPs[botnetSlice-botnetSlice : botnetSlice]
+		botnetIPs = botnetPoolIPs[0:botnetSlice]
 	}
 	//set time factor
 	switch timestep {
@@ -352,7 +352,7 @@ func realTraffic(waitG *sync.WaitGroup, logs *[]interface{}, startTime time.Time
 			IBMFunctions.RunFunction(functions[value].ID, functions[value].Runtime, functions[value].Memory)
 
 			mu.Lock()
-			*logs = append(*logs, bson.D{{"IP", ipaddress}, {"functioID", functions[value].ID}, {"timestamp", timestamp}, {"bot", false}})
+			*logs = append(*logs, bson.D{{Key: "IP", Value: ipaddress}, {Key: "functioID", Value: functions[value].ID}, {Key: "timestamp", Value: timestamp}, {Key: "bot", Value: false}})
 			//Check if log list is over size then begin to persist to database
 			if len(*logs) >= 10000 {
 				dump := *logs

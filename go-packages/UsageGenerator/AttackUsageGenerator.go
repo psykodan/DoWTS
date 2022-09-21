@@ -174,7 +174,7 @@ func botTraffic(waitG *sync.WaitGroup, logs *[]interface{}, startTime time.Time,
 					mu.Unlock()
 				}
 				mu.Lock()
-				*logs = append(*logs, bson.D{{"IP", ipaddress}, {"functioID", functions[value].ID}, {"timestamp", timestamp}, {"bot", true}})
+				*logs = append(*logs, bson.D{{Key: "IP", Value: ipaddress}, {Key: "functioID", Value: functions[value].ID}, {Key: "timestamp", Value: timestamp}, {Key: "bot", Value: true}})
 				//Check if log list is over size then begin to persist to database
 				if len(*logs) >= 10000 {
 					dump := *logs

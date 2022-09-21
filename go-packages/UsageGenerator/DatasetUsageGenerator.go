@@ -96,7 +96,7 @@ func DatasetUsageGenerator() {
 			fmt.Println(error)
 			return
 		}
-		logs = append(logs, bson.D{{"IP", ips[rec[7]]}, {"functioID", fn_triggers[rec[1]].ID}, {"timestamp", timestamp}, {"bot", false}})
+		logs = append(logs, bson.D{{Key: "IP", Value: ips[rec[7]]}, {Key: "functioID", Value: fn_triggers[rec[1]].ID}, {Key: "timestamp", Value: timestamp}, {Key: "bot", Value: false}})
 		//Check if log list is over size then begin to persist to database
 		if len(logs) >= 10000 {
 			dump := logs
