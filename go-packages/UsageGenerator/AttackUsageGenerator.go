@@ -56,6 +56,7 @@ var constantAttacknum = 2000
 //Exponential rate attack
 //start requests at 10 and increase by factor of 1.005 per timestep
 var expoAttacknum = 10.0
+var expoAttackfactor = 1.05
 
 //3
 //Random rate attack

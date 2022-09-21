@@ -34,6 +34,14 @@ var TotalRequests uint64
 var TotalRuntime uint64
 var TotalCompute uint64
 var TotalComputeCPU uint64
+var TotalPrice = 0.0
+
+//Running totals of just non malicious requests, for purpose of calculating attack damage
+var BaseRequests uint64
+var BaseRuntime uint64
+var BaseCompute uint64
+var BaseComputeCPU uint64
+var BasePrice = 0.0
 
 //Running totals for individual function totals (Hard coded to keep track of 10 functions - can be expanded)
 var functions [10][4]uint64
@@ -83,6 +91,54 @@ func RunFunction(id int, runtime uint64, memory uint64) {
 
 }
 
+//Function that updates running totals with function invocation
+func RunBaseFunction(id int, runtime uint64, memory uint64) {
+	//Atomic incrimentation of requests by 1
+	atomic.AddUint64(&BaseRequests, 1)
+	//Atomic incrimentation of runtime by function runtime in ms
+	atomic.AddUint64(&BaseRuntime, runtime)
+
+	//Calculate compute time in GBsec
+	var compute = ((float32(runtime)) / 1000) * ((float32(memory)) / 1024)
+	//multiply by 1000000 for storage as int that can be safely atomically stored in running total
+	//fmt.Print(compute)
+	compute = compute * 1000000
+	//fmt.Print(compute)
+	atomic.AddUint64(&BaseCompute, uint64(compute))
+
+	//Init CPU configuration
+	cpu := 0
+
+	//CPU spec in GHz directly corresponds to function memory allocation in MB
+	if memory == 128 {
+		cpu = 200
+	} else if memory == 256 {
+		cpu = 400
+	} else if memory == 512 {
+		cpu = 800
+	} else if memory == 1024 {
+		cpu = 1400
+	} else if memory == 2048 {
+		cpu = 2400
+	} else {
+		cpu = 0
+		fmt.Print("BANG")
+	}
+
+	//Calculate CPU usage in GHzsec
+	var computeCPU = ((float32(runtime)) / 1000) * ((float32(cpu)) / 1000)
+	//multiply by 1000000 for storage as int that can be safely atomically stored in running total
+	computeCPU = computeCPU * 1000000
+	atomic.AddUint64(&BaseComputeCPU, uint64(computeCPU))
+
+	//Use function id (0,1,2...,n) to store seperate function totals
+	atomic.AddUint64(&functions[id][0], 1)
+	atomic.AddUint64(&functions[id][1], runtime)
+	atomic.AddUint64(&functions[id][2], uint64(compute))
+	atomic.AddUint64(&functions[id][2], uint64(computeCPU))
+
+}
+
 //Function to calculate total price of function executions on platform
 func CalculatePrice() string {
 	//Subract free requests from total requests
@@ -114,7 +170,42 @@ func CalculatePrice() string {
 	//Total cost
 	var price = compPrice + reqPrice + compCPUPrice
 
-	out := fmt.Sprintf("%f,%d,%f\n", price, TotalRequests, float64(TotalCompute)/1000000)
+	out := fmt.Sprintf("Total\t\t\t%f,%d,%f\n", price, TotalRequests, float64(TotalCompute)/1000000)
+	return out
+}
+
+//Function to calculate base price of function executions on platform
+func CalculateBasePrice() string {
+	//Subract free requests from base requests
+	baseRequests := int(BaseRequests) - freeRequests
+	//Multiply remainder by request price to get cost
+	reqPrice := float64(baseRequests) * REQUEST_PRICE
+	//Subtract free compute time from base compute time (convert compute time back to GBsec by dividing by 1000000)
+	baseCompute := float64(BaseCompute)/1000000 - freeCompute
+	//Multiply remainder by compute price to get cost
+	compPrice := baseCompute * COMPUTE_PRICE
+	//Subtract free CPU time from base CPU time (convert CPU time back to GHzsec by dividing by 1000000)
+	baseComputeCPU := float64(BaseComputeCPU)/1000000 - freeComputeCPU
+	//Multiply remainder by computeCPU price to get cost
+	compCPUPrice := baseComputeCPU * COMPUTE_CPU_PRICE
+
+	//Checks to counteract negative prices that occur when below free limits
+	if reqPrice < 0 {
+		reqPrice = 0
+	}
+
+	if compPrice < 0 {
+		compPrice = 0
+	}
+
+	if compCPUPrice < 0 {
+		compCPUPrice = 0
+	}
+
+	//Total cost
+	var price = compPrice + reqPrice + compCPUPrice
+
+	out := fmt.Sprintf("Base total\t\t%f,%d,%f\n", price, BaseRequests, float64(BaseCompute)/1000000)
 	return out
 }
 
@@ -151,4 +242,12 @@ func CalculateFnPrice(numfn int) []float64 {
 		prices = append(prices, price)
 	}
 	return prices
+}
+
+func AttackDamage() string {
+	damage := TotalPrice - BasePrice
+
+	out := fmt.Sprintf("Damage Caused\t%f\n", damage)
+
+	return out
 }

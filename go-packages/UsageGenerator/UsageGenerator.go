@@ -38,7 +38,7 @@ func Start() {
 	}
 	defer client.Disconnect(ctx)
 
-	SyntheticSetup(1, 0, 48, 12)
+	SyntheticSetup(1, 0, 0, 12)
 	SyntheticDataGenerator()
 	//DatasetUsageGenerator()
 

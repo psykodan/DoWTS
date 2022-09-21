@@ -153,9 +153,11 @@ func SyntheticDataGenerator() {
 		}
 		//3
 		randAttacknum = rand.Intn(400)
-		if botnetSize > 0 {
+		if botnetSize > 0 && attackchoice != 0 {
 			if ts >= attackStart && ts < (attackStart+attackDur) {
 				fmt.Print("attack start")
+				//2
+				expoAttacknum = expoAttacknum * expoAttackfactor
 				for b := 0; b < botnetSlice; b++ {
 					wg.Add(1)
 					go botTraffic(&wg, &logs, startTime, attackchoice)
@@ -165,9 +167,13 @@ func SyntheticDataGenerator() {
 
 		wg.Wait()
 		AWSLog += AWSLambda.CalculatePrice()
+		AWSLog += AWSLambda.CalculateBasePrice()
 		GCFLog += GoogleFunctions.CalculatePrice()
+		GCFLog += GoogleFunctions.CalculateBasePrice()
 		AzureLog += AzureFunctions.CalculatePrice()
+		AzureLog += AzureFunctions.CalculateBasePrice()
 		IBMLog += IBMFunctions.CalculatePrice()
+		IBMLog += IBMFunctions.CalculateBasePrice()
 		//increment log time by time step
 		startTime = startTime.Add(time.Millisecond * time.Duration(timeFactor))
 		//Split large log list for safer writing
@@ -184,32 +190,35 @@ func SyntheticDataGenerator() {
 				log.Fatal(insertErr)
 			}
 		}
-		//2
-		expoAttacknum = expoAttacknum * 1.005
+
 		//fmt.Print(expoAttacknum)
 		//fmt.Print("\n")
 	}
 
 	f, err := os.Create("AWS")
 	check(err)
+	AWSLog += AWSLambda.AttackDamage()
 	w := bufio.NewWriter(f)
 	w.WriteString(detailLog)
 	w.WriteString(AWSLog)
 	w.Flush()
 	f, err = os.Create("GCF")
 	check(err)
+	GCFLog += GoogleFunctions.AttackDamage()
 	w = bufio.NewWriter(f)
 	w.WriteString(detailLog)
 	w.WriteString(GCFLog)
 	w.Flush()
 	f, err = os.Create("Azure")
 	check(err)
+	AzureLog += AzureFunctions.AttackDamage()
 	w = bufio.NewWriter(f)
 	w.WriteString(detailLog)
 	w.WriteString(AzureLog)
 	w.Flush()
 	f, err = os.Create("IBM")
 	check(err)
+	IBMLog += IBMFunctions.AttackDamage()
 	w = bufio.NewWriter(f)
 	w.WriteString(detailLog)
 	w.WriteString(IBMLog)
@@ -231,10 +240,10 @@ func SyntheticSetup(input1 int, input2 int, input3 int, input4 int) {
 	timestep = 2
 	numSteps = 730
 	usersPerStep = 1500
-	trafficPerStep = 61000
+	trafficPerStep = 50000
 	botnetSize = 1000
 	botnetSlice = 100
-	detailLog += "attack: " + fmt.Sprint(attackchoice) + " IP spoofing: " + fmt.Sprint(attackIPchoice) + "bursty real" + fmt.Sprint(realBursty) + "bursty bot" + fmt.Sprint(botBursty) + "\n"
+	detailLog += "attack: " + fmt.Sprint(attackchoice) + " IP spoofing: " + fmt.Sprint(attackIPchoice) + "\n"
 	detailLog += "all attack params start. Constant = " + fmt.Sprint(constantAttacknum) + "Exponential = " + fmt.Sprint(expoAttacknum) + "\n"
 	detailLog += "all IP params start. C reset = " + fmt.Sprint(resetVal) + "B reset = " + fmt.Sprint(5000) + "\n"
 	if attackIPchoice == 5 || attackIPchoice == 6 || attackIPchoice == 7 {
@@ -337,6 +346,7 @@ func realTraffic(waitG *sync.WaitGroup, logs *[]interface{}, startTime time.Time
 			dif := functions[value].Runtime + uint64(rand.Intn(1000))
 			timestamp = timestamp.Add(time.Millisecond * time.Duration(dif))
 			AWSLambda.RunFunction(functions[value].ID, functions[value].Runtime, functions[value].Memory)
+			AWSLambda.RunBaseFunction(functions[value].ID, functions[value].Runtime, functions[value].Memory)
 			GoogleFunctions.RunFunction(functions[value].ID, functions[value].Runtime, functions[value].Memory)
 			AzureFunctions.RunFunction(functions[value].ID, functions[value].Runtime, functions[value].Memory)
 			IBMFunctions.RunFunction(functions[value].ID, functions[value].Runtime, functions[value].Memory)
