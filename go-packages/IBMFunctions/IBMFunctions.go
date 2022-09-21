@@ -88,7 +88,7 @@ func CalculatePrice() string {
 	}
 	//Total cost
 	var price = compPrice
-
+	TotalPrice = price
 	out := fmt.Sprintf("Total\t\t\t%f,%d,%f\n", price, TotalRequests, float64(TotalCompute)/1000000)
 	return out
 }
@@ -107,7 +107,7 @@ func CalculateBasePrice() string {
 	}
 	//Total cost
 	var price = compPrice
-
+	BasePrice = price
 	out := fmt.Sprintf("Base total\t\t%f,%d,%f\n", price, BaseRequests, float64(BaseCompute)/1000000)
 	return out
 }

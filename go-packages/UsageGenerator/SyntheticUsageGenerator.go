@@ -348,8 +348,11 @@ func realTraffic(waitG *sync.WaitGroup, logs *[]interface{}, startTime time.Time
 			AWSLambda.RunFunction(functions[value].ID, functions[value].Runtime, functions[value].Memory)
 			AWSLambda.RunBaseFunction(functions[value].ID, functions[value].Runtime, functions[value].Memory)
 			GoogleFunctions.RunFunction(functions[value].ID, functions[value].Runtime, functions[value].Memory)
+			GoogleFunctions.RunBaseFunction(functions[value].ID, functions[value].Runtime, functions[value].Memory)
 			AzureFunctions.RunFunction(functions[value].ID, functions[value].Runtime, functions[value].Memory)
+			AzureFunctions.RunBaseFunction(functions[value].ID, functions[value].Runtime, functions[value].Memory)
 			IBMFunctions.RunFunction(functions[value].ID, functions[value].Runtime, functions[value].Memory)
+			IBMFunctions.RunBaseFunction(functions[value].ID, functions[value].Runtime, functions[value].Memory)
 
 			mu.Lock()
 			*logs = append(*logs, bson.D{{Key: "IP", Value: ipaddress}, {Key: "functioID", Value: functions[value].ID}, {Key: "timestamp", Value: timestamp}, {Key: "bot", Value: false}})
