@@ -1,7 +1,9 @@
 package UsageGenerator
 
 import (
+	"fmt"
 	"log"
+	"os"
 	"sync"
 	"time"
 
@@ -14,66 +16,67 @@ import (
 	"golang.org/x/exp/rand"
 )
 
-//User configured parameters
+// User configured parameters
 var botnetSize int
 
-//Array of botnet IP addresses
+// Array of botnet IP addresses
 var botnetIPs []string
 
-//attackers
+// attackers
 var botBursty = false
 
-//attacks
-//1 = constant
-//2 = exponential
-//3 = random
+// attacks
+// 1 = constant
+// 2 = exponential
+// 3 = random
 var attackchoice = 1
 
-//ip changing
-//0 = A
-//1 = B
-//2 = C
-//3 = D  NOT APPLICABLE
-//4 = BC
-//5 = BD
-//6 = CD
-//7 = BCD
+// ip changing
+// 0 = A
+// 1 = B
+// 2 = C
+// 3 = D  NOT APPLICABLE
+// 4 = BC
+// 5 = BD
+// 6 = CD
+// 7 = BCD
 var attackIPchoice = 0
 
 var attacknum = 0
 
-//D
-//how many bots from available pool to use
+// D
+// how many bots from available pool to use
 var botnetSlice int
 var botnetPoolIPs []string
 
-//1
-//Constant rate attack
-//200 requests per hour times 24 as 24 hours in one day (timestep set to 3)
+// 1
+// Constant rate attack
+// 200 requests per hour times 24 as 24 hours in one day (timestep set to 3)
 var constantAttacknum = 2000
 
-//2
-//Exponential rate attack
-//start requests at 10 and increase by factor of 1.005 per timestep
+// 2
+// Exponential rate attack
+// start requests at 10 and increase by factor of 1.005 per timestep
 var expoAttacknum = 10.0
 var expoAttackfactor = 1.05
 
-//3
-//Random rate attack
-//random request rate between 0 and 2000 per hour
+// 3
+// Random rate attack
+// random request rate between 0 and 2000 per hour
 var randAttacknum = 0
+var randAttackFactor = 2000
 
-//variable to keep track of bot request so IPs can be changed
+// variable to keep track of bot request so IPs can be changed
 var numRequests = 0
 
-//reset counter to cancel attacks in progress that are going too long after request limit reached
+// reset counter to cancel attacks in progress that are going too long after request limit reached
 var resetCount = 0
 
-//reset value to reset IPs after amount of time steps
+// reset value to reset IPs after amount of time steps
 var resetVal = 1
 
-//Bot traffic generator
-func botTraffic(waitG *sync.WaitGroup, logs *[]interface{}, startTime time.Time, attack int) {
+// Bot traffic generator
+func botTraffic(waitG *sync.WaitGroup, logs *[]interface{}, csv *string, startTime time.Time, attack int) {
 	defer waitG.Done()
 
 	if len(botnetIPs) < botnetSlice {
@@ -174,18 +177,34 @@ func botTraffic(waitG *sync.WaitGroup, logs *[]interface{}, startTime time.Time,
 					mu.Unlock()
 				}
 				mu.Lock()
-				*logs = append(*logs, bson.D{{Key: "IP", Value: ipaddress}, {Key: "functioID", Value: functions[value].ID}, {Key: "timestamp", Value: timestamp}, {Key: "bot", Value: true}})
-				//Check if log list is over size then begin to persist to database
-				if len(*logs) >= 10000 {
-					dump := *logs
-					*logs = []interface{}{}
-					mu.Unlock()
-					_, insertErr := collection.InsertMany(ctx, dump)
-					if insertErr != nil {
-						log.Fatal(insertErr)
+				if fileWrite == 1 {
+					*csv += fmt.Sprintf("%s,true,%d,%s\n", ipaddress, functions[value].ID, timestamp.Format(time.RFC3339))
+					if len(*csv) >= 10000 {
+						dump := *csv
+						*csv = ""
+						mu.Unlock()
+
+						f, _ := os.OpenFile("simdata.csv", os.O_APPEND, 0644)
+						f.Write([]byte(dump))
+						f.Close()
+					} else {
+						mu.Unlock()
 					}
+
 				} else {
-					mu.Unlock()
+					*logs = append(*logs, bson.D{{Key: "IP", Value: ipaddress}, {Key: "functioID", Value: functions[value].ID}, {Key: "timestamp", Value: timestamp}, {Key: "bot", Value: true}})
+					//Check if log list is over size then begin to persist to database
+					if len(*logs) >= 10000 {
+						dump := *logs
+						*logs = []interface{}{}
+						mu.Unlock()
+						_, insertErr := collection.InsertMany(ctx, dump)
+						if insertErr != nil {
+							log.Fatal(insertErr)
+						}
+					} else {
+						mu.Unlock()
+					}
 				}
 			}
 		}

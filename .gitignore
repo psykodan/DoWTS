@@ -13,3 +13,12 @@
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
+simdata.csv
+AWS
+GCF
+IBM
+Azure
+autorun.log
+linear
+expo
+rand

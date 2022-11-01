@@ -251,3 +251,10 @@ func AttackDamage() string {
 
 	return out
 }
+func AttackDamageFMT() string {
+	damage := TotalPrice - BasePrice
+
+	out := fmt.Sprintf("%f", damage)
+
+	return out
+}

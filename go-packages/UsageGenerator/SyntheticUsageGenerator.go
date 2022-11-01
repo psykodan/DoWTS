@@ -20,31 +20,31 @@ import (
 	"gonum.org/v1/gonum/stat/distuv"
 )
 
-//User configured parameters
+// User configured parameters
 var numFunctions, userbaseSize int
 var timestep, numSteps, usersPerStep, trafficPerStep int
 
-//divisor based on time step
+// divisor based on time step
 var timeFactor int
 
-//Array of user IP addresses
+// Array of user IP addresses
 var ipaddresses []string
 
-//array of functions
+// array of functions
 var functions []function.Function
 
-//graphs of functions that execute one after another
+// graphs of functions that execute one after another
 var functionChains [][]int
 
-//wait group for synchronised goroutines
+// wait group for synchronised goroutines
 var wg sync.WaitGroup
 
-//Mutex for writing logs
+// Mutex for writing logs
 var mu sync.Mutex
 
-//Attack parameters
-//bursty traffic
-//real
+// Attack parameters
+// bursty traffic
+// real
 var realBursty = true
 
 var attackStart int
@@ -67,8 +67,10 @@ func SyntheticDataGenerator() {
 	for ts := 0; ts < numSteps; ts++ {
 		fmt.Print(ts)
 		fmt.Print("\n")
-		//bson for holding logs until persistence to database
+		//bson for holding logs until persistence to database Mongo option
 		logs := []interface{}{}
+		//string for holding logs to write to csv
+		csv := ""
 		//choose traffic based on Poisson distribution with expected trafic as lambda
 		traffic := int(poisson.Rand())
 		//add variation to the traffic total
@@ -124,43 +126,45 @@ func SyntheticDataGenerator() {
 		for index, value := range splitTraffic {
 			for t := 0; t < value; t++ {
 				wg.Add(1)
-				go realTraffic(&wg, &logs, startTime, index)
+				go realTraffic(&wg, &logs, &csv, startTime, index)
 			}
 		}
 
 		//BOTNET
 
-		//C
-		if attackIPchoice == 2 || attackIPchoice == 4 {
-			//if timestep is a multiple of the reset value, reset IPs
-			if ts%resetVal == 0 {
-				botnetIPs = botnetIPs[:0]
-				//generated IP addresses for the botnet
-				for ip := 0; ip < botnetSlice; ip++ {
-					botnetIPs = append(botnetIPs, genIpaddr())
+		if attackchoice != 0 {
+			//C
+			if attackIPchoice == 2 || attackIPchoice == 4 {
+				//if timestep is a multiple of the reset value, reset IPs
+				if ts%resetVal == 0 {
+					botnetIPs = botnetIPs[:0]
+					//generated IP addresses for the botnet
+					for ip := 0; ip < botnetSlice; ip++ {
+						botnetIPs = append(botnetIPs, genIpaddr())
 
+					}
 				}
 			}
-		}
 
-		//CD & BCD
-		if attackIPchoice == 6 || attackIPchoice == 7 {
-			//if timestep is a multiple of the reset value, reset IPs
-			if ts%resetVal == 0 {
-				seed := rand.Intn(botnetSize - botnetSlice)
-				botnetIPs = botnetPoolIPs[seed : seed+botnetSlice]
+			//CD & BCD
+			if attackIPchoice == 6 || attackIPchoice == 7 {
+				//if timestep is a multiple of the reset value, reset IPs
+				if ts%resetVal == 0 {
+					seed := rand.Intn(botnetSize - botnetSlice)
+					botnetIPs = botnetPoolIPs[seed : seed+botnetSlice]
+				}
 			}
-		}
-		//3
-		randAttacknum = rand.Intn(400)
-		if botnetSize > 0 && attackchoice != 0 {
-			if ts >= attackStart && ts < (attackStart+attackDur) {
-				fmt.Print("attack start")
-				//2
-				expoAttacknum = expoAttacknum * expoAttackfactor
-				for b := 0; b < botnetSlice; b++ {
-					wg.Add(1)
-					go botTraffic(&wg, &logs, startTime, attackchoice)
+			//3
+			randAttacknum = rand.Intn(randAttackFactor)
+			if botnetSize > 0 && attackchoice != 0 {
+				if ts >= attackStart && ts < (attackStart+attackDur) {
+					fmt.Print("attack start")
+					//2
+					expoAttacknum = expoAttacknum * expoAttackfactor
+					for b := 0; b < botnetSlice; b++ {
+						wg.Add(1)
+						go botTraffic(&wg, &logs, &csv, startTime, attackchoice)
+					}
 				}
 			}
 		}
@@ -223,14 +227,27 @@ func SyntheticDataGenerator() {
 	w.WriteString(detailLog)
 	w.WriteString(IBMLog)
 	w.Flush()
+
+	f, _ = os.OpenFile("autorun.log", os.O_APPEND, 0644)
+	f.Write([]byte(" " + AWSLambda.AttackDamageFMT() + " " + GoogleFunctions.AttackDamageFMT() + " " + AzureFunctions.AttackDamageFMT() + " " + IBMFunctions.AttackDamageFMT() + "\n"))
+	f.Close()
 }
 
-func SyntheticSetup(input1 int, input2 int, input3 int, input4 int) {
+func SyntheticSetup(input1 int, input2 int, input3 int, input4 int, input5 float64, input6 float64) {
 	// input
 	attackchoice = input1
 	attackIPchoice = input2
 	attackStart = input3
 	attackDur = input4
+
+	if attackchoice == 1 {
+		constantAttacknum = int(input5)
+	} else if attackchoice == 2 {
+		expoAttackfactor = input6
+		expoAttacknum = input5
+	} else if attackchoice == 3 {
+		randAttackFactor = int(input5)
+	}
 	fmt.Print(attackchoice)
 	fmt.Print(attackIPchoice)
 
@@ -320,7 +337,7 @@ func SyntheticSetup(input1 int, input2 int, input3 int, input4 int) {
 	}
 }
 
-//Random IP address generator
+// Random IP address generator
 func genIpaddr() string {
 	ip := fmt.Sprintf("%d.%d.%d.%d", rand.Intn(255), rand.Intn(255), rand.Intn(255), rand.Intn(255))
 	return ip
@@ -333,8 +350,8 @@ func diff(a, b int) int {
 	return a - b
 }
 
-//Real traffic generator
-func realTraffic(waitG *sync.WaitGroup, logs *[]interface{}, startTime time.Time, index int) {
+// Real traffic generator
+func realTraffic(waitG *sync.WaitGroup, logs *[]interface{}, csv *string, startTime time.Time, index int) {
 	defer waitG.Done()
 	ipaddress := ipaddresses[rand.Intn(userbaseSize)]
 	//fmt.Println(ipaddress)
@@ -355,18 +372,35 @@ func realTraffic(waitG *sync.WaitGroup, logs *[]interface{}, startTime time.Time
 			IBMFunctions.RunBaseFunction(functions[value].ID, functions[value].Runtime, functions[value].Memory)
 
 			mu.Lock()
-			*logs = append(*logs, bson.D{{Key: "IP", Value: ipaddress}, {Key: "functioID", Value: functions[value].ID}, {Key: "timestamp", Value: timestamp}, {Key: "bot", Value: false}})
-			//Check if log list is over size then begin to persist to database
-			if len(*logs) >= 10000 {
-				dump := *logs
-				*logs = []interface{}{}
-				mu.Unlock()
-				_, insertErr := collection.InsertMany(ctx, dump)
-				if insertErr != nil {
-					log.Fatal(insertErr)
+			if fileWrite == 1 {
+				*csv += fmt.Sprintf("%s,false,%d,%s\n", ipaddress, functions[value].ID, timestamp.Format(time.RFC3339))
+				if len(*csv) >= 10000 {
+					dump := *csv
+					*csv = ""
+					mu.Unlock()
+
+					f, _ := os.OpenFile("simdata.csv", os.O_APPEND, 0644)
+					f.Write([]byte(dump))
+					f.Close()
+				} else {
+					mu.Unlock()
 				}
+
 			} else {
-				mu.Unlock()
+				*logs = append(*logs, bson.D{{Key: "IP", Value: ipaddress}, {Key: "functioID", Value: functions[value].ID}, {Key: "timestamp", Value: timestamp}, {Key: "bot", Value: false}})
+				//Check if log list is over size then begin to persist to database
+				if len(*logs) >= 10000 {
+					dump := *logs
+					*logs = []interface{}{}
+					mu.Unlock()
+
+					_, insertErr := collection.InsertMany(ctx, dump)
+					if insertErr != nil {
+						log.Fatal(insertErr)
+					}
+				} else {
+					mu.Unlock()
+				}
 			}
 		}
 	}

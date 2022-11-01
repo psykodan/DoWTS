@@ -183,6 +183,13 @@ func AttackDamage() string {
 
 	return out
 }
+func AttackDamageFMT() string {
+	damage := TotalPrice - BasePrice
+
+	out := fmt.Sprintf("%f", damage)
+
+	return out
+}
 
 //Function that calculates cost per function. Works the same as total cost function except returns array of prices of each function
 func CalculateFnPrice(numfn int) []float64 {
